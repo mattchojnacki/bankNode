@@ -225,9 +225,9 @@ httpServer.on('request', function (req, rep) {
 								}
                                 accounts.findOneAndUpdate({ _id: sessions[session].account }, { $set: { balance: doc.balance }});
 								accounts.findOneAndUpdate({ login: transfer.recipient }, { $set: { balance: docr.balance + transfer.amount }});
-                                transactions.insertOne({ account: doc._id, account2: docr._id, date: now, amount: -transfer.amount, after: doc.balance });
-                                transactions.insertOne({ account: docr._id, account2: doc._id, date: now, amount: transfer.amount, after: docr.balance + transfer.amount });
-                                unicast(session, transfer.recipient, "success", "New transfer from " + sessions[session].login + " has just arrived");
+																transactions.insertOne({ account: doc._id, account2: docr._id, date: now, amount: -transfer.amount, after: doc.balance, title: transfer.title });
+																transactions.insertOne({ account: docr._id, account2: doc._id, date: now, amount: transfer.amount, after: docr.balance + transfer.amount, title: transfer.title });
+																unicast(session, transfer.recipient, "success", "New transfer '"+ transfer.title  +"' from " + sessions[session].login + " has just arrived");
                                 rep.writeHead(200,'OK',{"Content-type": "application/json"});
                                 rep.end(JSON.stringify(doc));
 							});
@@ -283,7 +283,29 @@ httpServer.on('request', function (req, rep) {
 					rep.end(JSON.stringify(docs));
 				});
 
-			} else if(/^\/(html|css|js|fonts|img)\//.test(req.url)) {
+			} else if(/^\/prevrec\//.test(req.url)) {
+
+        if(!session || !sessions[session] || !sessions[session].login || !sessions[session].account) {
+          rep.writeHead(401, 'Auth required', { "Content-type" : "application/json" });
+          rep.end(JSON.stringify({ error: 'Not logged in'}));
+          break;
+        }
+
+        transactions.aggregate([
+          {$match: {account: sessions[session].account }},
+          {$lookup: { from: "accounts", localField: "account2", foreignField: "_id", as: "account2" }},
+          {$unwind: { path: "$account2" }},
+          {$addFields: {account2: "$account2.login"}},
+          {$project: {_id: 0, account2: 1}},
+          {$group: {_id: "$account2", count:{ $sum: 1}}},
+          {$sort: {count: -1}}
+
+        ]).toArray(function(err, docs) {
+          rep.writeHead(200,'OK',{"Content-type": "application/json"});
+          rep.end(JSON.stringify(docs));
+        });
+
+      } else if(/^\/(html|css|js|fonts|img)\//.test(req.url)) {
 
 				var fileName = path.normalize('./' + req.url)
 				serveFile(rep, fileName, 200, '');
