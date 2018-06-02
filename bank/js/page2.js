@@ -1,4 +1,4 @@
-app.controller("Page2", [ "$http", "common", function($http, common) {
+app.controller("Page2", [ "$http", "common", "$websocket", function($http, common, $websocket) {
 
     var ctrl = this;
 
@@ -39,5 +39,14 @@ app.controller("Page2", [ "$http", "common", function($http, common) {
     );
 
     ctrl.getHistory();
+
+    ctrl.dataStream = $websocket('ws://' + window.location.host);
+
+    ctrl.dataStream.onMessage(function(msg) {
+      try {
+        var data = JSON.parse(msg.data);
+        if(data.type === 'success') ctrl.getHistory();
+      } catch(err) {}
+    });
   }
   ]);
